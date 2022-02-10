@@ -4,12 +4,12 @@
 #' reports on tracking data analysis.
 #'
 #' @param analysis_table Data frame that proivdes all values needed for the RMarkdown template, see details.
-#' Defaults to the cpr_report_params data object that is contained within OPPTools.
+#' Defaults to the cpf_report_params data object that is contained within OPPTools.
 #' @param login Stored Movebank login credentials if provided, otherwise function
 #'will prompt users to enter credentials.
 #' @param output_dir Name of of the directory where reports should be saved.
 #'
-#' @details Still need to write this up, once function is complete.
+#' @details Still need to write this up, once function is complete...
 #'
 #' The example below will only work if the user has permissions for all the projects listed in cpf_report_params
 #'
@@ -19,7 +19,6 @@
 #' opp_reports_cpf()
 #'
 #'@export
-
 
 opp_reports_cpf <- function(analysis_table = cpf_report_params,login = NULL, output_dir = 'temp') {
 
@@ -37,4 +36,3 @@ opp_reports_cpf <- function(analysis_table = cpf_report_params,login = NULL, out
   }
 }
 
-opp_reports_cpf()
