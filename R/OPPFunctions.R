@@ -38,10 +38,10 @@ opp_download_data <- function(study,
 
     # Download data from movebank
     mb_data <- suppressMessages(move::getMovebankData(study = ss, login = login,
-                                                      removeDuplicatedTimestamps = TRUE,
-                                                      includeExtraSensors = FALSE,
-                                                      deploymentAsIndividuals = TRUE,
-                                                      includeOutliers = FALSE))
+                                     removeDuplicatedTimestamps = TRUE,
+                                     includeExtraSensors = FALSE,
+                                     deploymentAsIndividuals = TRUE,
+                                     includeOutliers = FALSE))
 
     # Extract the minimal fields required
     loc_data <- as(mb_data, 'data.frame') %>%
@@ -206,7 +206,6 @@ prep_pathtrack <- function(data) {
 #' colCRS(murres)
 #'
 #' @export
-
 
 colCRS <- function(data) {
   return(paste0(
@@ -414,34 +413,15 @@ opp_explore_trips <- function(data) {
 #' @param returnBuff Outer distance (km) to capture trips that start and end
 #' away from the colony. Used to label trips as 'Incomplete'. Defaults to 20.
 #' @param duration Minimum trip duration (hrs)
-# @param missingLocs Proportion (0-1) of trip duration that a gap in consecutive
-# locations should not exceed. Used to label trips as 'Gappy'. Defaults to 0.2.
-#' @param gapTime Time (hrs) between successive locations at which trips will be flagged as 'Gappy'.
-#' Used in connection with gapDist, such that locations must be farther apart in
-#' both time and space to be considered a gap.
-#' @param gapDist Distance (km) between successive locations at which trips will be flagged as 'Gappy'.
-#' Used in connection with gapTime, such that locations must be farther apart in
-#' both time and space to be considered a gap.
 #' @param gapLimit Maximum time between points to be considered too large to be
 #' a contiguous tracking event. Can be used to ensure that deployments on the
 #' same animal in different years do not get combined into extra long trips.
 #' Defaults to 100 days.
+#' @param missingLocs Proportion (0-1) of trip duration that a gap in consecutive
+#' locations should not exceed. Used to label trips as 'Gappy'. Defaults to 0.2.
 #' @param showPlots Logical (T/F), should plots showing trip classification by generated?
 #' @param plotsPerPage Numeric indicating the number of individuals to include
 #' in a single plot. Defaults to 4.
-#'
-#' @details This returns a SpatialPointDataFrame in a longlat projection. Most fields in the dataframe
-#' come from the output of track2KBA::tripSplit. This function also adds fields for:
-#' \itemize{
-#' \item{DiffTime} {- Difference in hours between locations}
-#' \item{DiffDist} {- Difference in distance between locations}
-#' \item{Type} {- Type of trip: Non-trip, Complete, Incomplete, or Gappy}
-#' \item{TripSection} {- An integer index noting sections of a the trip that are separated by gaps}
-#'}
-#' Gaps in trips are defined as any pair of locations that are farther apart in time than gapTime and
-#' farther apart in space than gapDist.
-#'
-#'
 #'
 #' @examples
 #'my_data <- opp_download_data(study = c(1247096889),login = NULL, start_month = NULL,
@@ -450,19 +430,17 @@ opp_explore_trips <- function(data) {
 #'my_track2kba <- opp2KBA(data = my_data)
 #'
 #'my_trips <- opp_get_trips(data = my_track2kba, innerBuff  = 5, returnBuff = 20,
-#'                          duration  = 2, gapLimit = 100, gapTime = 2, gapDist = 5,
+#'                          duration  = 2, gapLimit = 100, missingLocs = 0.2,
 #'                          showPlots = TRUE)
 #' @export
 
 
 opp_get_trips <- function(data,
-                          innerBuff, # (km) minimum distance from the colony to be in a trip
-                          returnBuff, # (km) outer buffer to capture incomplete return trips
-                          duration, # (hrs) minimum trip duration
-                          # missingLocs = 0.2, # Percentage of trip duration that a gap in consecutive locations should not exceed
-                          gapTime,
-                          gapDist,
+                          innerBuff  = 5, # (km) minimum distance from the colony to be in a trip
+                          returnBuff = 20, # (km) outer buffer to capture incomplete return trips
+                          duration  = 2, # (hrs) minimum trip duration
                           gapLimit = 100,
+                          missingLocs = 0.2, # Percentage of trip duration that a gap in consecutive locations should not exceed
                           showPlots = TRUE,
                           plotsPerPage = 4
 ) {
@@ -486,24 +464,17 @@ opp_get_trips <- function(data,
     dplyr::mutate(
       dt = as.numeric(difftime(DateTime, dplyr::lag(DateTime), units = 'hour')),
       dt = ifelse(is.na(dt), 0, dt),
-      dist = getDist(lon = Longitude, lat = Latitude),
-      flag = ifelse(dt > gapTime & dist > gapDist * 1000, 1, 0),
-      trip_section = 1 + cumsum(flag),
       n = dplyr::n(),
       tripTime = as.numeric(difftime(max(DateTime), min(DateTime), units = 'hour')),
       Type = NA,
       Type = ifelse(ColDist[1] > returnBuff * 1000 | ColDist[dplyr::n()] > returnBuff * 1000, 'Incomplete', Type),
-      #Type = ifelse(max(dt, na.rm = T) > tripTime * missingLocs, 'Gappy', Type),
-      Type = ifelse(max(flag, na.rm = T) > 0, 'Gappy', Type),
+      Type = ifelse(max(dt, na.rm = T) > tripTime * missingLocs, 'Gappy', Type),
       Type = ifelse(tripID == -1, 'Non-trip', Type),
       Type = ifelse(n < 3, 'Non-trip', Type),
       Type = ifelse(is.na(Type), 'Complete', Type)
     )
 
-  trips$DiffTime <- trips_type$dt
-  trips$DiffDist <- trips_type$dist
   trips$Type <- trips_type$Type
-  trips$TripSection <- trips_type$trip_section
 
   bb <- unique(trips_type$ID)
   idx <- seq(1,length(bb), by = plotsPerPage)
@@ -524,9 +495,8 @@ opp_get_trips <- function(data,
         ggplot2::scale_color_viridis_d() +
         ggplot2::theme_light() +
         ggplot2::theme(
-          text = ggplot2::element_text(size = 9),
-          axis.text.x = ggplot2::element_text(size = 7)
-          )
+          text = ggplot2::element_text(size = 10)
+        )
 
       print(p)
       #readline('')
@@ -538,7 +508,8 @@ opp_get_trips <- function(data,
 
 # -----
 
-#' Interpolate GPS locations at a set time interval
+#' Interpolate GPS locations at a set time interval using a continuous time correlated
+#' random walk (ctcrw) model
 #'
 #' @description This function is a wrapper for momentuHMM::crawlWrap(), which
 #' uses the crawl package to fit ctcrw model to GPS tracks at a user-defined
@@ -556,13 +527,9 @@ opp_get_trips <- function(data,
 #'format as site information returned by OPPtools::opp2KBA or track2KBA::move2KBA.
 #'@param type List indicating the types of trips to include in interpolation.
 #'Possible values are: 'Complete', 'Incomplete', 'Gappy', and 'Non-trip'. Default is 'Complete'.
-#'@param timestep String indicating time step for track interpolation, eg. '10 min', '1 hour', '1 day'
-#'@param interpolateGaps Logical. Should interpolation include locations identified
-#'as gaps by OPPtools:opp_get_trips. Default is TRUE.
+#'@param timestep string indicating time step for track interpolation, eg. '10 min', '1 hour', '1 day'
 #'@param showPlots TRUE/FALSE should plots of interpolated tracks against original data be produced
-#'@param theta Starting values for ctcrw parameter optimization, see ?crawl::crwMLE for details
-#'@param quiet Logical. Suppresses print messages from crawl::crwMLE, which is useful when running the
-#'function in an Rmd document. Default is FALSE.
+#'@param theta starting values for ctcrw parameter optimization, see ?crawl::crwMLE for details
 #'
 #'@examples
 #'my_data <- opp_download_data(study = c(1247096889),login = NULL, start_month = NULL,
@@ -571,30 +538,26 @@ opp_get_trips <- function(data,
 #'my_track2kba <- opp2KBA(data = my_data)
 #'
 #'my_trips <- opp_get_trips(data = my_track2kba, innerBuff  = 5, returnBuff = 20,
-#'                          duration  = 2, gapLimit = 100, gapTime = 2, gapDist = 5,
+#'                          duration  = 2, gapLimit = 100, missingLocs = 0.2,
 #'                          showPlots = TRUE)
-#'
 #'
 #'my_interp <- ctcrw_interpolation(data = my_trips,
 #'                                 site = my_track2kba$site,
 #'                                 type = c('Complete','Incomplete'),
 #'                                 timestep = '10 min',
-#'                                 interpolateGaps = TRUE,
 #'                                 showPlots = T,
 #'                                 theta = c(8,2)
 #')
 #'@export
-#'
-#'
-ctcrw_interpolation <- function(data,
-                                site,
-                                type,
-                                timestep,
-                                interpolateGaps = TRUE,
-                                showPlots = TRUE,
-                                theta = c(8,2),
-                                quiet = FALSE
 
+ctcrw_interpolation <- function(data,
+  site,
+  type,
+  timestep,
+  interpolateGaps = TRUE,
+  showPlots = TRUE,
+  theta = c(8, 2),
+  quiet = FALSE
 ) {
 
   # Generate custom laea projection centered on colony
@@ -624,34 +587,19 @@ ctcrw_interpolation <- function(data,
   interp_loc$time <- interp_loc$DateTime
   interp_loc$Bird <- interp_loc$ID
   interp_loc$ID <- interp_loc$tripID
-  if (interpolateGaps == FALSE)   {
-    interp_loc$ID <- paste0(interp_loc$tripID,'.',interp_loc$TripSection)
-    tt <- table(interp_loc$ID)
-    interp_loc <- subset(interp_loc, !(interp_loc$ID %in% names(tt)[tt < 3]))
-  }
   interp_loc <- interp_loc[,c('Bird', 'ID', 'time', 'ColDist')]
 
-  if (quiet == TRUE) {
-    invisible(capture.output(crwOut <- momentuHMM::crawlWrap(obsData = interp_loc,
-                                                             timeStep = timestep,
-                                                             theta = theta,
-                                                             fixPar = c(NA,NA),
-                                                             method = 'Nelder-Mead')))
-  } else {
-    crwOut <- momentuHMM::crawlWrap(obsData = interp_loc,
-                                    timeStep = timestep,
-                                    theta = theta,
-                                    fixPar = c(NA,NA),
-                                    method = 'Nelder-Mead')
-  }
+  crwOut <- momentuHMM::crawlWrap(obsData = interp_loc,
+                                  timeStep = timestep,
+                                  theta = theta,
+                                  fixPar = c(NA,NA),
+                                  method = 'Nelder-Mead')
 
   pred <- data.frame(crwOut$crwPredict) %>%
     dplyr::filter(locType == 'p') %>%
     dplyr::select(Bird, ID, time, ColDist, mu.x, mu.y, se.mu.x, se.mu.y) %>%
     tidyr::separate('ID', c('Bird', NA), sep = '_', remove = FALSE) %>%
     dplyr::rename(tripID = ID, ID = Bird, DateTime = time)
-
-  if (interpolateGaps == F) pred <- tidyr::separate(pred, 'tripID', c('tripID', NA), sep = '[.]', remove = FALSE)
 
   pred <- sp::SpatialPointsDataFrame(coords = pred[,c('mu.x', 'mu.y')],
                                      data = pred[,c('ID', 'tripID', 'DateTime', 'ColDist',
@@ -663,6 +611,7 @@ ctcrw_interpolation <- function(data,
   pred_longlat <- sp::spTransform(pred, sp::CRS('+proj=longlat'))
   pred$Longitude <- sp::coordinates(pred_longlat)[,1]
   pred$Latitude <- sp::coordinates(pred_longlat)[,2]
+  pred$Type <- type
 
   # re-calculate distance from colony for all interpolated locations
   if (nrow(site_loc) == 1)  pred$ColDist <- sp::spDistsN1(pred, site_loc)
@@ -700,8 +649,7 @@ ctcrw_interpolation <- function(data,
         ggplot2::scale_x_datetime(date_labels = '%b-%d') +
         ggplot2::theme_light() +
         ggplot2::theme(
-          text = ggplot2::element_text(size = 9),
-          axis.text.x = ggplot2::element_text(size = 7)
+          text = ggplot2::element_text(size = 8)
         )
 
       print(p)
@@ -714,6 +662,80 @@ ctcrw_interpolation <- function(data,
   return(out)
 }
 
+
+# -----
+
+#' Calculate trip summaries
+#'
+#' @description `sum_trips` quickly calculates summary information
+#' such as maximum distance from the colony, trip start time,
+#' trip end time, and trip duration for each individual trip ID.
+#' The function accepts outputs from either `opp_get_trips` or
+#' `ctcrw_interpolation`. If interpolated data are provided, the
+#' output provides a summary of interpolated trips.
+#'
+#'
+#'@param data Trip data ouptut from opp_get_trips() or ctcrw_interpolation().
+#'
+#'@examples
+#'my_data <- opp_download_data(study = c(1247096889),login = NULL, start_month = NULL,
+#'                             end_month = NULL,season = NULL)
+#'
+#'my_track2kba <- opp2KBA(data = my_data)
+#'
+#'my_trips <- opp_get_trips(data = my_track2kba, innerBuff  = 5, returnBuff = 20,
+#'                          duration  = 2, gapLimit = 100, missingLocs = 0.2,
+#'                          showPlots = TRUE)
+#'
+#'my_interp <- ctcrw_interpolation(data = my_trips,
+#'                                 site = my_track2kba$site,
+#'                                 type = c('Complete','Incomplete'),
+#'                                 timestep = '10 min',
+#'                                 showPlots = T,
+#'                                 theta = c(8,2)
+#')
+#'
+#'sum_trips(my_trips)
+#'sum_trips(my_interp)
+#'
+#'@export
+
+sum_trips <- function(data) {
+  # This is an improved version of track2KBA::tripSummary using data.table
+  # TO-DO: add support to calc total_distance & direction for outputs
+
+  # First check if output is from opp_get_trips vs. ctcrw_interpolation
+  if (class(data) == "SpatialPointsDataFrame") {
+
+    # If it's the output from opp_get_trips
+    tripSum <- data.table::setDT(data@data)[, .(n_locs = .N, departure = min(DateTime), return = max(DateTime), max_dist_km = (max(ColDist))/1000, complete = unique(Type)), by = list(ID, tripID)]
+    tripSum$duration <- as.numeric(tripSum$return - tripSum$departure)
+    tripSum <- tripSum %>% dplyr::select(ID, tripID, n_locs, departure, return, duration, max_dist_km, complete)
+
+  } else if (class(data) == "list") {
+    # If it's the output from ctcrw_interpolation
+    raw_trips <- data$data@data
+    interp_trips <- data$interp@data
+
+    # For now since interp does not return trip type, assuming
+    # it's all "complete trip"
+    tripSum <- data.table::setDT(interp_trips)[, .(interp_n_locs = .N, departure = min(DateTime), return = max(DateTime), max_dist_km = (max(ColDist))/1000, complete = unique(Type)), by = list(ID, tripID)]
+    tripSum$duration <- as.numeric(tripSum$return - tripSum$departure)
+
+    raw_n_locs <- data.table::setDT(raw_trips)[tripID != -1, .(raw_n_locs = .N), by = list(ID, tripID)]
+    raw_n_locs$ID <- as.character(raw_n_locs$ID)
+
+    tripSum <- merge(tripSum, raw_n_locs, by = c("ID", "tripID"))
+
+    tripSum <- tripSum %>% dplyr::select(ID, tripID, raw_n_locs, interp_n_locs, departure, return, duration, max_dist_km, complete)
+    message("Trip summary provided for interpolated data.")
+
+  } else {
+    message("Error: Cannot calculate trip summary. Input data must be the output from either opp_get_trips or ctcrw_interpolation.")
+  }
+
+  return(tripSum)
+}
 
 # ----
 
@@ -728,6 +750,8 @@ ctcrw_interpolation <- function(data,
 #' @param lat Vector of latitudes
 #' @param lonlat If TRUE, coordinates should be in degrees; else they should represent planar ('Euclidean') space (e.g. units of meters)
 #' @returns A vector of distances in meters.
+#'
+#' @export
 
 getDist <- function(lon, lat, lonlat = TRUE) {
 
@@ -743,5 +767,4 @@ getDist <- function(lon, lat, lonlat = TRUE) {
                                    lonlat = T))
   }
   out
-  #' @export getDist
 }

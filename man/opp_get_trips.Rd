@@ -6,12 +6,11 @@
 \usage{
 opp_get_trips(
   data,
-  innerBuff,
-  returnBuff,
-  duration,
-  gapTime,
-  gapDist,
+  innerBuff = 5,
+  returnBuff = 20,
+  duration = 2,
   gapLimit = 100,
+  missingLocs = 0.2,
   showPlots = TRUE,
   plotsPerPage = 4
 )
@@ -27,18 +26,13 @@ away from the colony. Used to label trips as 'Incomplete'. Defaults to 20.}
 
 \item{duration}{Minimum trip duration (hrs)}
 
-\item{gapTime}{Time (hrs) between successive locations at which trips will be flagged as 'Gappy'.
-Used in connection with gapDist, such that locations must be farther apart in
-both time and space to be considered a gap.}
-
-\item{gapDist}{Distance (km) between successive locations at which trips will be flagged as 'Gappy'.
-Used in connection with gapTime, such that locations must be farther apart in
-both time and space to be considered a gap.}
-
 \item{gapLimit}{Maximum time between points to be considered too large to be
 a contiguous tracking event. Can be used to ensure that deployments on the
 same animal in different years do not get combined into extra long trips.
 Defaults to 100 days.}
+
+\item{missingLocs}{Proportion (0-1) of trip duration that a gap in consecutive
+locations should not exceed. Used to label trips as 'Gappy'. Defaults to 0.2.}
 
 \item{showPlots}{Logical (T/F), should plots showing trip classification by generated?}
 
@@ -51,18 +45,6 @@ in tracking data to identify and classify trips from a nest or colony. It is
 a wrapper for track2KBA::tripSplit that applies custom criteria for classifying
 trips.
 }
-\details{
-This returns a SpatialPointDataFrame in a longlat projection. Most fields in the dataframe
-come from the output of track2KBA::tripSplit. This function also adds fields for:
-\itemize{
-\item{DiffTime} {- Difference in hours between locations}
-\item{DiffDist} {- Difference in distance between locations}
-\item{Type} {- Type of trip: Non-trip, Complete, Incomplete, or Gappy}
-\item{TripSection} {- An integer index noting sections of a the trip that are separated by gaps}
-}
-Gaps in trips are defined as any pair of locations that are farther apart in time than gapTime and
-farther apart in space than gapDist.
-}
 \examples{
 my_data <- opp_download_data(study = c(1247096889),login = NULL, start_month = NULL,
                             end_month = NULL,season = NULL)
@@ -70,6 +52,6 @@ my_data <- opp_download_data(study = c(1247096889),login = NULL, start_month = N
 my_track2kba <- opp2KBA(data = my_data)
 
 my_trips <- opp_get_trips(data = my_track2kba, innerBuff  = 5, returnBuff = 20,
-                         duration  = 2, gapLimit = 100, gapTime = 2, gapDist = 5,
+                         duration  = 2, gapLimit = 100, missingLocs = 0.2,
                          showPlots = TRUE)
 }
